@@ -11,9 +11,9 @@
 // internal linking. This is the entry point for the program from the
 // kernel for an ordinary -buildmode=exe program. The stack holds the
 // number of arguments and the C-style argv.
-TEXT _rt0_amd64(SB),NOSPLIT,$-8
-	MOVQ	0(SP), DI	// argc
-	LEAQ	8(SP), SI	// argv
+TEXT _rt0_amd64(SB),NOSPLIT,$-8		// 运行时进行操作系统入口参数的传递
+	MOVQ	0(SP), DI	// argc		// 将参数个数存入DI
+	LEAQ	8(SP), SI	// argv		// 将参数数组的地址存入SI
 	JMP	runtime·rt0_go(SB)
 
 // main is common startup code for most amd64 systems when using
@@ -85,7 +85,7 @@ DATA _rt0_amd64_lib_argv<>(SB)/8, $0
 GLOBL _rt0_amd64_lib_argv<>(SB),NOPTR, $8
 
 TEXT runtime·rt0_go(SB),NOSPLIT,$0
-	// copy arguments forward on an even stack
+	// copy arguments forward on an even stack  // 将参数向前复制到一个偶数栈上
 	MOVQ	DI, AX		// argc
 	MOVQ	SI, BX		// argv
 	SUBQ	$(4*8+7), SP		// 2args 2auto
@@ -93,18 +93,18 @@ TEXT runtime·rt0_go(SB),NOSPLIT,$0
 	MOVQ	AX, 16(SP)
 	MOVQ	BX, 24(SP)
 
-	// create istack out of the given (operating system) stack.
+	// create istack out of the given (operating system) stack. // 初始化g0执行栈，为全局变量g0设置一些栈相关的属性。PS: 栈是由高地址向低地址增长，堆是由低地址向高地址增长。
 	// _cgo_init may update stackguard.
-	MOVQ	$runtime·g0(SB), DI
-	LEAQ	(-64*1024+104)(SP), BX
-	MOVQ	BX, g_stackguard0(DI)
-	MOVQ	BX, g_stackguard1(DI)
-	MOVQ	BX, (g_stack+stack_lo)(DI)
-	MOVQ	SP, (g_stack+stack_hi)(DI)
+	MOVQ	$runtime·g0(SB), DI				// DI = g0, 将全局变量g0的存入DI
+	LEAQ	(-64*1024+104)(SP), BX			// BX = SP + (-64*1024+104)，g0的栈帧大小
+	MOVQ	BX, g_stackguard0(DI)			// g0.stackguard0 = SP + (-64*1024+104)
+	MOVQ	BX, g_stackguard1(DI)			// g0.stackguard1 = SP + (-64*1024+104)
+	MOVQ	BX, (g_stack+stack_lo)(DI)		// 栈的低地址 g0.stack.lo = SP + (-64*1024+104)
+	MOVQ	SP, (g_stack+stack_hi)(DI)		// 栈的高地址 g0.stack.hi = SP
 
-	// find out information about the processor we're on
+	// find out information about the processor we're on	// 确定 CPU 处理器的信息
 	MOVL	$0, AX
-	CPUID
+	CPUID			// CPUID 会设置 AX 的值
 	MOVL	AX, SI
 	CMPL	AX, $0
 	JE	nocpuinfo
@@ -179,28 +179,28 @@ needtls:
 	// skip TLS setup on Darwin
 	JMP ok
 #endif
+	// 线程本地存储(tls)相关设置
+	LEAQ	runtime·m0+m_tls(SB), DI	// DI = &m0.tls
+	CALL	runtime·settls(SB)			// 将 TLS 地址设置到 DI
 
-	LEAQ	runtime·m0+m_tls(SB), DI
-	CALL	runtime·settls(SB)
-
-	// store through it, to make sure it works
-	get_tls(BX)
-	MOVQ	$0x123, g(BX)
-	MOVQ	runtime·m0+m_tls(SB), AX
-	CMPQ	AX, $0x123
-	JEQ 2(PC)
-	CALL	runtime·abort(SB)
+	// store through it, to make sure it works	// 使用TLS进行存储，确保能正常运行。通过tls设置一个数值，然后m0.tls[0]获取，与设置的值对比
+	get_tls(BX)									// MOVQ		TLS, BX  // 获取fs地址到BX
+	MOVQ	$0x123, g(BX)						// 反编译后 mov qword ptr fs:[0xfffffff8], 0x123，表示设置fs-8地址中的内容为0x123，其实就是m0.tls[0]的地址。
+	MOVQ	runtime·m0+m_tls(SB), AX			// ax = m0.tls[0]
+	CMPQ	AX, $0x123							// 判断 TLS 是否设置成功
+	JEQ 2(PC)									// 如果相等则向后跳转两条指令
+	CALL	runtime·abort(SB)					// 使用 INT 指令执行中断
 ok:
-	// set the per-goroutine and per-mach "registers"
-	get_tls(BX)
-	LEAQ	runtime·g0(SB), CX
-	MOVQ	CX, g(BX)
-	LEAQ	runtime·m0(SB), AX
+	// set the per-goroutine and per-mach "registers"	// m0.tls[0] = &g0; g0与m0相互绑定
+	get_tls(BX)									// 获取fs地址到BX
+	LEAQ	runtime·g0(SB), CX					// CX = &g0
+	MOVQ	CX, g(BX)							// m0.tls[0] = &g0
+	LEAQ	runtime·m0(SB), AX					// AX = &m0
 
 	// save m->g0 = g0
-	MOVQ	CX, m_g0(AX)
+	MOVQ	CX, m_g0(AX)						// m0.g0 = &g0
 	// save m0 to g0->m
-	MOVQ	AX, g_m(CX)
+	MOVQ	AX, g_m(CX)							// g0.m = &m0
 
 	CLD				// convention is D is always left cleared
 	CALL	runtime·check(SB)

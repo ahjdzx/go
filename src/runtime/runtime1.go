@@ -133,7 +133,7 @@ func testAtomic64() {
 	}
 }
 
-func check() {
+func check() { // 运行时类型检查
 	var (
 		a     int8
 		b     uint8
