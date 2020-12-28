@@ -60,7 +60,7 @@ func argv_index(argv **byte, i int32) *byte {
 func args(c int32, v **byte) {
 	argc = c
 	argv = v
-	sysargs(c, v)
+	sysargs(c, v) // 初始化内存物理页大小等全局变量
 }
 
 func goargs() {

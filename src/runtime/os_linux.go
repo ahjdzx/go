@@ -194,10 +194,10 @@ var addrspace_vec [1]byte
 
 func mincore(addr unsafe.Pointer, n uintptr, dst *byte) int32
 
-func sysargs(argc int32, argv **byte) {
+func sysargs(argc int32, argv **byte) { // 通过读取Linux 的 ELF 格式的进程栈结构，读取auvx(辅助向量)将某些内核级的信息传递给用户进程，如内存物理页大小。
 	n := argc + 1
 
-	// skip over argv, envp to get to auxv
+	// skip over argv, envp to get to auxv		// 跳过 argv, envp 来获取 auxv
 	for argv_index(argv, n) != nil {
 		n++
 	}
@@ -205,21 +205,21 @@ func sysargs(argc int32, argv **byte) {
 	// skip NULL separator
 	n++
 
-	// now argv+n is auxv
+	// now argv+n is auxv						// 尝试读取 auxv
 	auxv := (*[1 << 28]uintptr)(add(unsafe.Pointer(argv), uintptr(n)*sys.PtrSize))
 	if sysauxv(auxv[:]) != 0 {
 		return
 	}
 	// In some situations we don't get a loader-provided
 	// auxv, such as when loaded as a library on Android.
-	// Fall back to /proc/self/auxv.
+	// Fall back to /proc/self/auxv.			// 尝试读取 /proc/self/auxv
 	fd := open(&procAuxv[0], 0 /* O_RDONLY */, 0)
 	if fd < 0 {
 		// On Android, /proc/self/auxv might be unreadable (issue 9229), so we fallback to
 		// try using mincore to detect the physical page size.
 		// mincore should return EINVAL when address is not a multiple of system page size.
-		const size = 256 << 10 // size of memory region to allocate
-		p, err := mmap(nil, size, _PROT_READ|_PROT_WRITE, _MAP_ANON|_MAP_PRIVATE, -1, 0)
+		const size = 256 << 10                                                           // size of memory region to allocate
+		p, err := mmap(nil, size, _PROT_READ|_PROT_WRITE, _MAP_ANON|_MAP_PRIVATE, -1, 0) // 尝试调用mmap等内存分配的系统调用直接测试物理页大小
 		if err != 0 {
 			return
 		}
@@ -251,7 +251,7 @@ func sysargs(argc int32, argv **byte) {
 
 func sysauxv(auxv []uintptr) int {
 	var i int
-	for ; auxv[i] != _AT_NULL; i += 2 {
+	for ; auxv[i] != _AT_NULL; i += 2 { // 依次读取 auxv 键值对
 		tag, val := auxv[i], auxv[i+1]
 		switch tag {
 		case _AT_RANDOM:

@@ -203,17 +203,17 @@ ok:
 	MOVQ	AX, g_m(CX)							// g0.m = &m0
 
 	CLD				// convention is D is always left cleared
-	CALL	runtime·check(SB)
+	CALL	runtime·check(SB)					// 运行时类型检查
 
 	MOVL	16(SP), AX		// copy argc
 	MOVL	AX, 0(SP)
 	MOVQ	24(SP), AX		// copy argv
 	MOVQ	AX, 8(SP)
-	CALL	runtime·args(SB)
-	CALL	runtime·osinit(SB)
-	CALL	runtime·schedinit(SB)
+	CALL	runtime·args(SB)					// 传递操作系统的参数给args处理程序参数与全局变量（如内存物理页大小）
+	CALL	runtime·osinit(SB)					// 主要获取 CPU 核心数与内存大页大小
+	CALL	runtime·schedinit(SB)				// 调度器初始化
 
-	// create a new goroutine to start program
+	// create a new goroutine to start program		// 创建一个新的 goroutine 来启动程序
 	MOVQ	$runtime·mainPC(SB), AX		// entry
 	PUSHQ	AX
 	PUSHQ	$0			// arg size
