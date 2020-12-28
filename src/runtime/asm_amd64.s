@@ -213,18 +213,18 @@ ok:
 	CALL	runtime·osinit(SB)					// 主要获取 CPU 核心数与内存大页大小
 	CALL	runtime·schedinit(SB)				// 调度器初始化
 
-	// create a new goroutine to start program		// 创建一个新的 goroutine 来启动程序
-	MOVQ	$runtime·mainPC(SB), AX		// entry
-	PUSHQ	AX
-	PUSHQ	$0			// arg size
-	CALL	runtime·newproc(SB)
+	// create a new goroutine to start program		// 创建一个新的 goroutine 来启动程序。调用runtime·newproc创建goroutine，指向函数为runtime·main
+	MOVQ	$runtime·mainPC(SB), AX		// entry	// runtime·mainPC就是runtime·main
+	PUSHQ	AX										// newproc的第二个参数，也就是goroutine要执行的函数。
+	PUSHQ	$0			// arg size					// newproc的第一个参数，表示要传入runtime·main中参数的大小，此处为0。
+	CALL	runtime·newproc(SB)						// 创建 main goroutine。非main goroutine也是此方法创建。go编译会将语句 go foo() 编译为 runtime·newproc(SB) 并传入参数。
 	POPQ	AX
 	POPQ	AX
 
 	// start this M
-	CALL	runtime·mstart(SB)
+	CALL	runtime·mstart(SB)						// 进入调度循环
 
-	CALL	runtime·abort(SB)	// mstart should never return
+	CALL	runtime·abort(SB)	// mstart should never return		//  mstart应该永不返回，如果返回，说明程序出错了
 	RET
 
 	// Prevent dead-code elimination of debugCallV1, which is
@@ -232,7 +232,7 @@ ok:
 	MOVQ	$runtime·debugCallV1(SB), AX
 	RET
 
-DATA	runtime·mainPC+0(SB)/8,$runtime·main(SB)
+DATA	runtime·mainPC+0(SB)/8,$runtime·main(SB)	// 编译器负责生成 main 函数的入口地址，runtime.mainPC 在数据段中被定义为 runtime.main 保存主 goroutine 入口地址。
 GLOBL	runtime·mainPC(SB),RODATA,$8
 
 TEXT runtime·breakpoint(SB),NOSPLIT,$0-0
