@@ -5,10 +5,11 @@
 package runtime
 
 import (
-	"internal/cpu"
 	"runtime/internal/atomic"
 	"runtime/internal/sys"
 	"unsafe"
+
+	"internal/cpu"
 )
 
 // defined constants
@@ -323,11 +324,11 @@ type gobuf struct {
 	// and restores it doesn't need write barriers. It's still
 	// typed as a pointer so that any other writes from Go get
 	// write barriers.
-	sp   uintptr
-	pc   uintptr
-	g    guintptr
+	sp   uintptr  // 存储 rsp 寄存器的值
+	pc   uintptr  // 存储 rip 寄存器的值
+	g    guintptr // 指向 goroutine
 	ctxt unsafe.Pointer
-	ret  sys.Uintreg
+	ret  sys.Uintreg // 保存系统调用的返回值
 	lr   uintptr
 	bp   uintptr // for GOEXPERIMENT=framepointer
 }
@@ -393,8 +394,8 @@ type wincallbackcontext struct {
 // The bounds of the stack are exactly [lo, hi),
 // with no implicit data structures on either side.
 type stack struct {
-	lo uintptr
-	hi uintptr
+	lo uintptr // 栈顶，低地址
+	hi uintptr // 栈底，高地址
 }
 
 // heldLockInfo gives info on a held lock and the rank of that lock
@@ -415,10 +416,10 @@ type g struct {
 	stackguard0 uintptr // offset known to liblink
 	stackguard1 uintptr // offset known to liblink
 
-	_panic       *_panic // innermost panic - offset known to liblink
-	_defer       *_defer // innermost defer
-	m            *m      // current m; offset known to arm liblink
-	sched        gobuf
+	_panic       *_panic        // innermost panic - offset known to liblink
+	_defer       *_defer        // innermost defer
+	m            *m             // current m; offset known to arm liblink
+	sched        gobuf          // goroutine 的运行现场
 	syscallsp    uintptr        // if status==Gsyscall, syscallsp = sched.sp to use during gc
 	syscallpc    uintptr        // if status==Gsyscall, syscallpc = sched.pc to use during gc
 	stktopsp     uintptr        // expected sp at top of stack, to check in traceback
@@ -426,10 +427,11 @@ type g struct {
 	atomicstatus uint32
 	stackLock    uint32 // sigprof/scang lock; TODO: fold in to atomicstatus
 	goid         int64
-	schedlink    guintptr
+	schedlink    guintptr   // 指向全局队列里下一个 g
 	waitsince    int64      // approx time when the g become blocked
 	waitreason   waitReason // if status==Gwaiting
 
+	// 抢占调度标志。这个为 true 时，stackguard0 等于 stackpreempt
 	preempt       bool // preemption signal, duplicates stackguard0 = stackpreempt
 	preemptStop   bool // transition to _Gpreempted on preemption; otherwise, just deschedule
 	preemptShrink bool // shrink stack at synchronous safe point
@@ -457,7 +459,7 @@ type g struct {
 	sysexitticks   int64    // cputicks when syscall has returned (for tracing)
 	traceseq       uint64   // trace event sequencer
 	tracelastp     puintptr // last P emitted an event for this goroutine
-	lockedm        muintptr
+	lockedm        muintptr // 如果调用了 LockOSThread，那么这个 q 会绑定到某个 m 上
 	sig            uint32
 	writebuf       []byte
 	sigcode0       uintptr
@@ -486,6 +488,8 @@ type g struct {
 }
 
 type m struct {
+	// 记录工作线程（也就是内核线程）使用的栈信息。在执行调度代码时需要使用
+	// 执行用户 goroutine 代码时，使用用户 goroutine 自己的栈，因此调度时会发生栈的切换
 	g0      *g     // goroutine with scheduling stack
 	morebuf gobuf  // gobuf arg to morestack
 	divmod  uint32 // div/mod denominator for arm - known to liblink
@@ -495,11 +499,11 @@ type m struct {
 	gsignal       *g           // signal-handling g
 	goSigStack    gsignalStack // Go-allocated signal handling stack
 	sigmask       sigset       // storage for saved signal mask
-	tls           [6]uintptr   // thread-local storage (for x86 extern register)
+	tls           [6]uintptr   // thread-local storage (for x86 extern register) 通过 tls 结构体实现 m 与工作线程的绑定
 	mstartfn      func()
-	curg          *g       // current running goroutine
+	curg          *g       // current running goroutine 指向正在运行的 goroutine
 	caughtsig     guintptr // goroutine running during fatal signal
-	p             puintptr // attached p for executing go code (nil if not executing go code)
+	p             puintptr // attached p for executing go code (nil if not executing go code) 当前工作线程绑定的 p
 	nextp         puintptr
 	oldp          puintptr // the p that was attached before executing a syscall
 	id            int64
